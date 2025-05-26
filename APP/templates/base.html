@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>FamChat</title>
+  <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+  {% block content %}
+  <div class="chat-container">
+    <div class="chat-list">
+      <div class="chat-header">FamChat</div>
+      <div class="chat-list-item">Family Group</div>
+      <div class="chat-list-item">Cousins Chat</div>
+      <div class="chat-list-item">Mum</div>
+      <div class="chat-list-item">Dad</div>
+    </div>
+    <div class="chat-content">
+      <div class="chat-header">Family Group</div>
+      <div class="chat-messages">
+        <div class="message">Hello! How are you?</div>
+        <div class="message">I'm doing well, thank you!</div>
+      </div>
+      <div class="chat-input">
+        <input type="text" placeholder="Type a message...">
+        <button class="btn btn-primary">&#9658;</button>
+      </div>
+    </div>
+  </div>
+  <!-- Footer -->
+  <footer class="text-center py-4 bg-dark text-light">
+    <p>&copy; 2025 FamChat. All rights reserved.</p>
+  </footer>
+  {% endblock  %}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
