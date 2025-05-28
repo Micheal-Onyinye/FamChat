@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">FamChat</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false"
+                aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link active" href="{{ url_for('views.home') }}">Home</a></li>
+            <li class="nav-item"><a class="nav-link active" href="#">Groups</a></li>
+            <li class="nav-item"><a class="btn btn-custom ms-2" href="{{ url_for('auth.logout') }}">Logout</a></li>
+        </ul>
+        </div>
+    </div>
+</nav>
+<div class="chat-page-wrapper">
+    <div class="chat-container">
+        <div class="user-list-section">
+            <h2>Chats</h2>
+            <ul id="user-list">
+                {% for user in users %}
+                    <li><a href="#" onclick="startChat({{ user.id }}, '{{ user.username }}')">{{ user.username }}</a></li>
+                {% else %}
+                    <li>No users found. Ask others to sign up.</li>
+                {% endfor %}
+                </ul>
+        </div>
+        <div class="chat-section">
+            <div class="chat-header">
+                <h3>Chat with <span id="chat-with"></span></h3>
+            </div>
+            <div id="chat-box">
+                </div>
+            <form id="message-form" onsubmit="sendMessage(event)">
+                <button type="button" id="emoji-button">😀</button>
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+                <button type="submit" id="send-button">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let receiverId = null;
+    let groupId = null;
+    window.receiverId = null;
+    window.groupId = null;
+
+    function startChat(id, name) {
+        receiverId = id;
+        window.receiverId = id;
+        document.getElementById('chat-with').textContent = name;
+        loadMessages();
+    }
+</script>
+{% endblock %}
