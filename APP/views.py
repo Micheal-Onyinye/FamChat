@@ -1,7 +1,11 @@
 from flask import Blueprint, render_template,request, jsonify
-from flask_login import login_required,current_user
+from flask_login import login_required,current_user,login_user
 from . import db
-from .models import Message, User
+from .models import Message, User,UpdateProfileForm
+from .utilis import save_profile_pic
+from flask import render_template, redirect, url_for, flash, request
+
+
 
 
 
@@ -71,3 +75,21 @@ def get_messages():
     } for msg in messages]
 
     return jsonify({'messages': formatted})
+
+
+@views.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    form = UpdateProfileForm()
+    if form.validate_on_submit():
+        if form.profile_pic.data:
+            pic_file = save_profile_pic(form.profile_pic.data)
+            current_user.profile_pic = pic_file
+        current_user.username = form.username.data
+        db.session.commit()
+        login_user(current_user)  # Refresh the user session
+        flash('Your profile has been updated!', 'success')
+        return redirect(url_for('views.profile'))
+
+    form.username.data = current_user.username
+    return render_template('profile.html', form=form)

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-sm p-4" style="max-width: 500px; margin: auto;">
+        <div class="text-center">
+            <img src="{{ url_for('static', filename='profile_pic/' + (current_user.profile_pic or 'avatar.jpg')) }}" class="rounded-circle mb-3" width="120" height="120">
+            <h4>{{ current_user.username }}</h4>
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                {{ form.username.label(class="form-label") }}
+                {{ form.username(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.profile_pic.label(class="form-label") }}
+                {{ form.profile_pic(class="form-control") }}
+            </div>
+            <div class="d-grid">
+                {{ form.submit(class="btn btn-success") }}
+            </div>
+            <div class="text-center mt-3">
+              <a href="{{ url_for('views.chat') }}">Back</a>
+              </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
