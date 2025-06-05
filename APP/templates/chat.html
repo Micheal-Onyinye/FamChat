@@ -9,9 +9,9 @@
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     {% if current_user.profile_pic %}
-                    <img src="{{ url_for('static', filename='profile_pic/' + current_user.profile_pic) }}?v={{ config['PROFILE_PIC_VERSION'] | default(0) }}">
+                    <img src="{{ url_for('static', filename='profile_pic/' + current_user.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="30" height="30">
                     {% else %}
-                    <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle" width="35" height="35">
+                    <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle" width="30" height="30">
                     {% endif %}
 
                 </a>
@@ -31,13 +31,8 @@
             <ul id="user-list">
                 {% for user in users %}
                     <li class="d-flex align-items-center mb-2">
-                        {% if user.profile_pic %}
-                        <img src="{{ url_for('static', filename='profile_pic/' + user.profile_pic) }}?v={{ config['PROFILE_PIC_VERSION'] | default(0) }}">
-
-                        {% else %}
-                            <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" 
+                        <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" 
                                 class="rounded-circle me-2" width="30" height="30">
-                        {% endif %}
                         <a href="#" onclick="startChat({{ user.id }}, '{{ user.username }}')">{{ user.username }}</a>
                     </li>
                 {% else %}

@@ -19,7 +19,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
-    profile_picture = db.Column(db.String(150), nullable=True, default='default.jpg')
+    profile_pic = db.Column(db.String(150), nullable=False, default='avatar.jpg')
     last_seen = db.Column(db.DateTime(timezone=True), default=func.now())
     created_at = db.Column(db.DateTime(timezone=True), default=func.now())
     confirmed = db.Column(db.Boolean, default=False)
