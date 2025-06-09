@@ -1,54 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
 <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
-    <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-        <ul class="navbar-nav align-items-center">
-            <li class="nav-item me-3">
-                <span class="nav-link fw-bold">{{ current_user.username }}</span>
-            </li>
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    {% if current_user.profile_pic %}
-                    <img src="{{ url_for('static', filename='profile_pic/' + current_user.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="30" height="30">
-                    {% else %}
-                    <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle" width="30" height="30">
-                    {% endif %}
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="{{ url_for('views.home') }}">FamChat</a> 
 
-                </a>
-                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                    <li><a class="dropdown-item" href="{{ url_for('views.profile') }}">My Profile</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
-                </ul>
-            </li>
-        </ul>
-    </div>    
+        <button class="navbar-toggler" type="button" 
+                data-bs-toggle="collapse" 
+                data-bs-target="#chatPageNavbarContent" 
+                aria-controls="chatPageNavbarContent" aria-expanded="false" 
+                aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse justify-content-end" id="chatPageNavbarContent">
+            <ul class="navbar-nav align-items-center">
+                <li class="nav-item me-3">
+                    <span class="nav-link fw-bold">{{ current_user.username }}</span>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% if current_user.profile_pic %}
+                        <img src="{{ url_for('static', filename='profile_pic/' + current_user.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="35" height="35" alt="Profile Picture">
+                        {% else %}
+                        <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle me-2" width="35" height="35" alt="Default Avatar">
+                        {% endif %}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('views.home') }}">Home</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('views.profile') }}">My Profile</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>    
 </nav>
+
 <div class="chat-page-wrapper">
     <div class="chat-container">
         <div class="user-list-section">
             <h2>Chats</h2>
             <ul id="user-list">
                 {% for user in users %}
-                    <li class="d-flex align-items-center mb-2">
-                        <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" 
-                                class="rounded-circle me-2" width="30" height="30">
-                        <a href="#" onclick="startChat({{ user.id }}, '{{ user.username }}')">{{ user.username }}</a>
+                    <li class="d-flex align-items-center mb-2"> 
+                        {% if user.profile_pic %}
+                            <img src="{{ url_for('static', filename='profile_pic/' + user.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="35" height="35" alt="User Profile Picture">
+                        {% else %}
+                            <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle me-2" width="35" height="35" alt="Default Avatar">
+                        {% endif %}
+                        <a href="#" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}">{{ user.username }}</a>
                     </li>
                 {% else %}
                     <li>No users found. Ask others to sign up.</li>
                 {% endfor %}
             </ul>
-            
-            
         </div>
         <div class="chat-section">
             <div class="chat-header">
                 <h3>Chat with <span id="chat-with"></span></h3>
             </div>
             <div id="chat-box">
-                </div>
-            <form id="message-form" onsubmit="sendMessage(event)">
+            </div>
+            <form id="message-form">
                 <button type="button" id="emoji-button">😀</button>
                 <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
                 <button type="submit" id="send-button">Send</button>

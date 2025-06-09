@@ -9,9 +9,6 @@ import os
 
 
 
-
-
-
 views = Blueprint('views', __name__)
 @views.route ('/home')
 def home():
@@ -20,7 +17,7 @@ def home():
 @views.route('/chat')
 @login_required
 def chat():
-    # Get all users except the current user
+    #To Get all users except the current user
     users = User.query.filter(User.id != current_user.id).all()
     cache_buster = datetime.now(timezone.utc).timestamp()
     return render_template('chat.html', users=users, current_user=current_user, cache_buster=cache_buster)
@@ -30,7 +27,7 @@ def chat():
 def send_message():
     data = request.get_json()
     content = data.get('content')
-    group_id = data.get('group_id')     # for group chats
+    group_id = data.get('group_id')     
     receiver_id = data.get('receiver_id')  # for private chats
 
     if not content:
@@ -56,29 +53,34 @@ def send_message():
 @login_required
 def get_messages():
     group_id = request.args.get('group_id')
-    receiver_id = request.args.get('receiver_id')  # For private chats
+    receiver_id_str = request.args.get('receiver_id')
 
+    # ... (your existing print statements for debugging) ...
+
+    messages = []
     if group_id:
-        # Group messages
         messages = Message.query.filter_by(group_id=group_id).order_by(Message.timestamp).all()
-    elif receiver_id:
-        # Private chat: messages where current user is sender or receiver
+    elif receiver_id_str:
+        try:
+            receiver_id = int(receiver_id_str)
+        except ValueError:
+            return jsonify({'error': 'Invalid receiver_id'}), 400
+
         messages = Message.query.filter(
             ((Message.sender_id == current_user.id) & (Message.receiver_id == receiver_id)) |
             ((Message.sender_id == receiver_id) & (Message.receiver_id == current_user.id))
         ).order_by(Message.timestamp).all()
-    else:
-        # Optional fallback
-        messages = []
 
     formatted = [{
         'sender': msg.sender.username,
         'content': msg.content,
         'timestamp': msg.timestamp.strftime("%H:%M"),
+        # --- ADD THIS LINE ---
+        'is_current_user_sender': msg.sender_id == current_user.id 
+        # --- END ADDITION ---
     } for msg in messages]
 
     return jsonify({'messages': formatted})
-
 
 @views.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -102,20 +104,16 @@ def profile():
         else:
             print("No new profile picture data in form.")
 
-        # Update username
+        #To Update username
         current_user.username = form.username.data
         print(f"New username set to: {current_user.username}")
 
         db.session.commit()
         print(f"DB committed. Current_user.profile_pic AFTER commit: {current_user.profile_pic}")
 
-        # You typically don't need to login_user again here unless your session management requires it
-        # If you were facing issues with current_user not refreshing, this could help, but generally it's reloaded per request.
-        # login_user(current_user)
-
         flash('Your profile has been updated!', 'success')
 
-        # Verify the actual file exists on the filesystem
+        #To Verify the actual file exists on the filesystem
         if current_user.profile_pic:
             upload_folder = os.path.join(os.getcwd(), 'static', 'profile_pic')
             file_path = os.path.join(upload_folder, current_user.profile_pic)
@@ -129,7 +127,7 @@ def profile():
         print(f"Redirecting to: {url_for('views.profile')}")
         return redirect(url_for('views.profile'))
     else:
-        # If form validation fails or it's a GET request
+        
         if request.method == 'POST':
             print(f"Form validation failed. Errors: {form.errors}")
             for field, errors in form.errors.items():
