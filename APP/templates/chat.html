@@ -35,27 +35,52 @@
                 </li>
             </ul>
         </div>
-    </div>    
+    </div> 
 </nav>
 
 <div class="chat-page-wrapper">
     <div class="chat-container">
         <div class="user-list-section">
             <h2>Chats</h2>
+
+            <!-- Create Group Button -->
+            <button class="btn btn-primary btn-sm mb-3" onclick="location.href='{{ url_for('views.create_group') }}'">
+                + Create Group
+            </button>
+
+<!-- Private Chats -->
             <ul id="user-list">
+                <li class="fw-bold text-muted">Private Chats</li>
                 {% for user in users %}
-                    <li class="d-flex align-items-center mb-2"> 
+                    {% if user.id != current_user.id %}
+                    <li class="d-flex align-items-center mb-2">
                         {% if user.profile_pic %}
                             <img src="{{ url_for('static', filename='profile_pic/' + user.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="35" height="35" alt="User Profile Picture">
                         {% else %}
                             <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle me-2" width="35" height="35" alt="Default Avatar">
                         {% endif %}
-                        <a href="#" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}">{{ user.username }}</a>
+                        <a href="#" onclick="startChat('{{ user.id }}', '{{ user.username }}')" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}">
+                            {{ user.username }}
+                        </a>
+
                     </li>
-                {% else %}
-                    <li>No users found. Ask others to sign up.</li>
+                    {% endif %}
                 {% endfor %}
             </ul>
+
+            <hr>
+
+            <!-- Group Chats -->
+            <ul id="group-list">
+                <li class="fw-bold text-muted">Group Chats</li>
+                {% for group in groups %}
+                <li class="d-flex align-items-center mb-2">
+                    <i class="bi bi-people-fill me-2"></i>
+                    <a href="#" onclick="startGroupChat({{ group.id }}, '{{ group.name }}')">{{ group.name }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+
         </div>
         <div class="chat-section">
             <div class="chat-header">
@@ -77,14 +102,23 @@
 <script>
     let receiverId = null;
     let groupId = null;
-    window.receiverId = null;
-    window.groupId = null;
 
-    function startChat(id, name) {
+    function startPrivateChat(id, name) {
         receiverId = id;
+        groupId = null;
         window.receiverId = id;
+        window.groupId = null;
         document.getElementById('chat-with').textContent = name;
-        loadMessages();
+        loadMessages(); // You implement logic to fetch private messages
+    }
+
+    function startGroupChat(id, name) {
+        groupId = id;
+        receiverId = null;
+        window.groupId = id;
+        window.receiverId = null;
+        document.getElementById('chat-with').textContent = name + " (Group)";
+        loadMessages(); // You implement logic to fetch group messages
     }
 </script>
 {% endblock %}

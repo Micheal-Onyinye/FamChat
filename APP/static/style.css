@@ -274,3 +274,8 @@ body {
         font-size: 1em;
     }
 }
+
+#create_group{
+    text-align: center;
+    background-color: #0a9f1e;
+}
