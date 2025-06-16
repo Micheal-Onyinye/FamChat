@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, url_for, redirect, request, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, current_user, login_required, logout_user
 from . import db
-from .models import User
+from .models import User, Group
 
 auth = Blueprint('auth', __name__)
 
@@ -34,6 +34,9 @@ def sign_up():
         else:
             hashed_password = generate_password_hash(password, method='scrypt')
             new_user = User(username=username, email=email, password=hashed_password)
+            general_group = Group.query.filter_by(name="General Chat").first()
+            if general_group:
+                new_user.groups.append(general_group)
             db.session.add(new_user)
             db.session.commit()
 
@@ -60,7 +63,7 @@ def login():
 
             if check_password_hash(user.password, password):
                 login_user(user, remember=True)
-                flash('Logged in successfully', category='success')
+                #flash('Logged in successfully', category='success')
                 return redirect(url_for('views.home'))
             else:
                 flash('Incorrect password', category='error')

@@ -60,8 +60,10 @@ class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.String(300), nullable=True)
+    profile_pic = db.Column(db.String(150), nullable=False, default='avatar.jpg')
     created_at = db.Column(db.DateTime(timezone=True), default=func.now())
-
+    creator_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    creator = db.relationship('User', backref='created_groups', foreign_keys=[creator_id])
     messages = db.relationship('Message', backref='group', lazy=True, overlaps="members,groups")
 
     def __repr__(self):

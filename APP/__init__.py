@@ -1,3 +1,4 @@
+
 from flask import Flask
 from dotenv import load_dotenv
 import os
@@ -20,8 +21,7 @@ def define_app():
     app.register_blueprint(views, url_prefix='/')
     app.register_blueprint(auth, url_prefix='/')
 
-    # Set up database models and login manager
-    from .models import User, Group
+    from .models import User, Group  # register models
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
@@ -30,17 +30,18 @@ def define_app():
     def load_user(user_id):
         return User.query.get(int(user_id))
 
-    # 💡 Run your setup logic directly
-    with app.app_context():
-        setup_general_chat()
-
     return app
 
-# 💡 Move your setup function here (no decorators)
+# ✅ Keep setup_general_chat here, but don't run it inside define_app
 def setup_general_chat():
     from .models import Group, User
     if not Group.query.filter_by(name="General Chat").first():
-        general_group = Group(name="General Chat", description="Default group for everyone")
+        general_group = Group(
+            name="General Chat",
+            description="Default group for everyone",
+            profile_pic="avatar.jpg"  # Optional default
+            # No creator_id needed here
+        )
         db.session.add(general_group)
         db.session.commit()
 
@@ -52,11 +53,11 @@ def setup_general_chat():
                 group.members.append(user)
         db.session.commit()
 
+
 def create_database(app): 
-    DB_NAME = "database.db"
     if not path.exists(f'APP/{DB_NAME}'):
         with app.app_context():
             db.create_all()
-            print('Created database')
+            print('✅ Created database')
     else:
-        print('Database already exists')
+        print('✅ Database already exists')

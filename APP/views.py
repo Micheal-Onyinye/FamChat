@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template,request, jsonify
+from flask import Blueprint, render_template,request, jsonify,current_app
 from flask_login import login_required,current_user,login_user
 from . import db
 from .models import Message, User,UpdateProfileForm
@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import os 
 from .models import User, Group
 from .forms import CreateGroupForm
+from werkzeug.utils import secure_filename
 
 views = Blueprint('views', __name__)
 
@@ -135,21 +136,47 @@ def send_group_message(group_id):
     db.session.add(msg)
     db.session.commit()
     return jsonify({'status': 'sent'})
-
 @views.route('/create-group', methods=['GET', 'POST'])
 @login_required
 def create_group():
     form = CreateGroupForm()
     form.members.choices = [(user.id, user.username) for user in User.query.filter(User.id != current_user.id).all()]
+    
+    group_pic = 'avatar.jpg'  # Default fallback image
 
     if form.validate_on_submit():
+        # Handle profile picture upload
+        file = request.files.get('profile_pic')
+        if file and file.filename != '':
+            allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            if '.' in file.filename and ext in allowed_extensions:
+                # Ensure the folder exists
+                upload_folder = os.path.join(current_app.root_path, 'static', 'profile_pic')
+                os.makedirs(upload_folder, exist_ok=True)
+
+                # Make filename unique
+                from datetime import datetime
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"{timestamp}_{secure_filename(file.filename)}"
+
+                file_path = os.path.join(upload_folder, filename)
+                file.save(file_path)
+
+                group_pic = filename
+
+        # Create group with profile picture
         group = Group(
             name=form.name.data,
-            description=form.description.data
+            description=form.description.data,
+            profile_pic=group_pic,
+            creator_id=current_user.id
         )
-        db.session.add(group)
-        group.members.append(current_user)
 
+        db.session.add(group)
+
+        # Add current user and selected members
+        group.members.append(current_user)
         for user_id in form.members.data:
             user = User.query.get(user_id)
             if user:
@@ -159,4 +186,29 @@ def create_group():
         flash('Group created successfully!', 'success')
         return redirect(url_for('views.chat'))
 
-    return render_template('create_group.html', form=form)
+    return render_template('create_group.html', form=form, group_pic=group_pic)
+
+
+
+@views.route('/delete-group/<int:group_id>', methods=['POST'])
+@login_required
+def delete_group(group_id):
+    group = Group.query.get_or_404(group_id)
+
+    if group.creator_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Delete group messages first (to handle FK constraints)
+    Message.query.filter_by(group_id=group.id).delete()
+
+    # Remove users from group (optional but clean)
+    for member in group.members.all():
+        group.members.remove(member)
+
+    
+    db.session.delete(group)
+    db.session.commit()
+    flash("Group deleted successfully", "success")
+    return redirect(url_for('views.chat'))
+
+

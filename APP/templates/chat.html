@@ -62,7 +62,7 @@
                         <a href="#" onclick="startChat('{{ user.id }}', '{{ user.username }}')" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}">
                             {{ user.username }}
                         </a>
-
+                        
                     </li>
                     {% endif %}
                 {% endfor %}
@@ -75,8 +75,17 @@
                 <li class="fw-bold text-muted">Group Chats</li>
                 {% for group in groups %}
                 <li class="d-flex align-items-center mb-2">
-                    <i class="bi bi-people-fill me-2"></i>
-                    <a href="#" onclick="startGroupChat({{ group.id }}, '{{ group.name }}')">{{ group.name }}</a>
+                        {% if group.profile_pic %}
+                            <img src="{{ url_for('static', filename='profile_pic/' + group.profile_pic) }}?v={{ cache_buster }}" class="rounded-circle me-2" width="30" height="30" alt="Group Profile Picture">
+                        {% else %}
+                            <img src="{{ url_for('static', filename='profile_pic/avatar.jpg') }}" class="rounded-circle me-2" width="30" height="30" alt="Default Avatar">
+                        {% endif %}
+                    <a href="#" onclick="startGroupChat({{ group.id }}, '{{ group.name }}')" class="flex-grow-1">{{ group.name }}</a>
+                    {% if current_user in group.members %}
+                        <form method="POST" action="{{ url_for('views.delete_group', group_id=group.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this group?');">
+                            <button type="submit" class="btn btn-sm btn-success ms-2">🗑</button>
+                        </form>
+                    {% endif %}
                 </li>
                 {% endfor %}
             </ul>
@@ -109,8 +118,7 @@
         window.receiverId = id;
         window.groupId = null;
         document.getElementById('chat-with').textContent = name;
-        loadMessages(); // You implement logic to fetch private messages
-    }
+        loadMessages(); 
 
     function startGroupChat(id, name) {
         groupId = id;
@@ -118,7 +126,7 @@
         window.groupId = id;
         window.receiverId = null;
         document.getElementById('chat-with').textContent = name + " (Group)";
-        loadMessages(); // You implement logic to fetch group messages
+        loadMessages(); 
     }
 </script>
 {% endblock %}
