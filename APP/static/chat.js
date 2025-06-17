@@ -1,15 +1,16 @@
 import { EmojiButton } from 'https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@latest/dist/index.min.js';
 
-// State
-let receiverId = null;
-let groupId = null;
-window.receiverId = null;
+// State variables, initialized from window properties set by Flask
+let receiverId = window.initialChatType === 'user' ? window.initialChatId : null;
+let groupId = window.initialChatType === 'group' ? window.initialChatId : null;
 
 const chatBox = document.getElementById('chat-box');
 const messageInput = document.getElementById('message-input');
 const emojiButton = document.querySelector('#emoji-button');
 const messageForm = document.getElementById('message-form');
 const userListElement = document.getElementById('user-list');
+const groupListElement = document.getElementById('group-list'); // NEW: Get group list element
+
 
 // Emoji Picker setup
 const picker = new EmojiButton();
@@ -45,7 +46,7 @@ async function sendMessage(event) {
 
     if (response.ok) {
         messageInput.value = '';
-        loadMessages();  // Unified load
+        await loadMessages();  // Wait for messages to load before scrolling
     } else {
         console.error('Failed to send message:', await response.text());
         alert('Message failed to send.');
@@ -54,7 +55,7 @@ async function sendMessage(event) {
 
 // Unified Load Message Handler
 async function loadMessages() {
-    chatBox.innerHTML = '';
+    chatBox.innerHTML = ''; // Clear existing messages
 
     let url = '';
     if (groupId) {
@@ -62,7 +63,7 @@ async function loadMessages() {
     } else if (receiverId) {
         url = `/get_messages?receiver_id=${receiverId}`;
     } else {
-        return;
+        return; // No chat selected, nothing to load
     }
 
     const response = await fetch(url);
@@ -77,7 +78,17 @@ async function loadMessages() {
     data.messages.forEach(msg => {
         const div = document.createElement('div');
         div.className = 'message';
+        // Use window.currentUserId for comparison, not msg.is_current_user_sender if it's not directly passed
+        // However, the Flask view now correctly calculates and passes `is_current_user_sender`
         div.classList.add(msg.is_current_user_sender ? 'sent-message' : 'received-message');
+
+        // You can make these styles more robust in your CSS (e.g., .sent-message and .received-message)
+        // For demonstration, adding inline styles
+        if (msg.is_current_user_sender) {
+            div.style.textAlign = 'right'; // For sent messages
+        } else {
+            div.style.textAlign = 'left'; // For received messages
+        }
 
         div.innerHTML = `<strong>${msg.sender}</strong>: ${msg.content} <span class="timestamp">(${msg.timestamp})</span>`;
         fragment.appendChild(div);
@@ -87,47 +98,58 @@ async function loadMessages() {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Private Chat Starter
-function startChat(id, name) {
-    receiverId = id;
-    groupId = null;
-    window.receiverId = id;
-    document.getElementById('chat-with').textContent = `${name}`;
+// Function to set the active chat
+function setActiveChat(type, id, name) {
+    if (type === 'user') {
+        receiverId = id;
+        groupId = null;
+        document.getElementById('chat-with').textContent = name;
+    } else if (type === 'group') {
+        groupId = id;
+        receiverId = null;
+        document.getElementById('chat-with').textContent = name + " (Group)";
+    }
     loadMessages();
 }
 
-// Group Chat Starter
-function startGroupChat(id, name = "Group Chat") {
-    groupId = id;
-    receiverId = null;
-    window.receiverId = null;
-    document.getElementById("chat-with").textContent = name;
-    loadMessages();
-}
 
-// Initial Setup
+// Initial Setup on DOM Content Loaded
 document.addEventListener('DOMContentLoaded', () => {
     if (messageForm) {
         messageForm.addEventListener('submit', sendMessage);
     }
 
+    // Event listener for private chat links (delegated to userListElement)
     if (userListElement) {
         userListElement.addEventListener('click', (event) => {
-            const clickedLink = event.target.closest('a');
-            if (!clickedLink) return;
-
-            const userId = clickedLink.dataset.userId;
-            const userName = clickedLink.dataset.userName;
-            const groupIdAttr = clickedLink.dataset.groupId;
-            const groupNameAttr = clickedLink.dataset.groupName;
-
-            if (userId && userName) {
-                startChat(userId, userName);
-            } else if (groupIdAttr) {
-                startGroupChat(groupIdAttr, groupNameAttr || "Group Chat");
+            const clickedLink = event.target.closest('a[data-chat-type="user"]');
+            if (clickedLink) {
+                const userId = clickedLink.dataset.chatId;
+                const userName = clickedLink.dataset.chatName;
+                setActiveChat('user', userId, userName);
+                event.preventDefault(); // Prevent default link behavior
             }
-
-            event.preventDefault();
         });
     }
+
+    // Event listener for group chat links (delegated to groupListElement)
+    if (groupListElement) { // Use the new groupListElement
+        groupListElement.addEventListener('click', (event) => {
+            const clickedLink = event.target.closest('a[data-chat-type="group"]');
+            if (clickedLink) {
+                const groupId = clickedLink.dataset.chatId;
+                const groupName = clickedLink.dataset.chatName;
+                setActiveChat('group', groupId, groupName || "Group Chat");
+                event.preventDefault(); // Prevent default link behavior
+            }
+        });
+    }
+
+    // Load messages if initial chat is set by Flask
+    if (window.initialChatType && window.initialChatId) {
+        setActiveChat(window.initialChatType, window.initialChatId, document.getElementById('chat-with').textContent);
+    }
 });
+
+// Expose setActiveChat globally if needed, though event delegation is better
+// window.startChat = setActiveChat; // You can uncomment this if you need to call it from other inline JS (less ideal)

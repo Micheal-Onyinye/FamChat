@@ -14,7 +14,7 @@ def sign_up():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
 
-        print("🧾 SIGN UP ROUTE WAS TRIGGERED")
+        print(" SIGN UP ROUTE WAS TRIGGERED")
 
         user = User.query.filter_by(email=email).first()
         if user:
@@ -49,7 +49,7 @@ def sign_up():
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        print("🔐 LOGIN ROUTE WAS TRIGGERED")
+        print(" LOGIN ROUTE WAS TRIGGERED")
 
         email = request.form.get('email')
         password = request.form.get('password')
