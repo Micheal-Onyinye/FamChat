@@ -47,7 +47,7 @@
                 + Create Group
             </button>
 
-<ul id="user-list">
+            <ul id="user-list">
                 <li class="fw-bold text-muted">Private Chats</li>
                 {% for user in users %}
                     {% if user.id != current_user.id %}
@@ -93,7 +93,7 @@
             <div class="chat-header">
                 <h3>Chat with <span id="chat-with">{{ chat_title }}</span></h3>
             </div>
-            <div id="chat-box">
+            <div id="chat-box" data-initial-messages="{{ initial_messages | tojson }}">
                 {% for msg in initial_messages %}
                     <div class="message {{ 'sent-message' if msg.is_current_user_sender else 'received-message' }}">
                         <strong>{{ msg.sender }}</strong>: {{ msg.content }} <span class="timestamp">({{ msg.timestamp }})</span>
@@ -102,20 +102,21 @@
             </div>
             <form id="message-form">
                 <button type="button" id="emoji-button">😀</button>
-                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="on" />
                 <button type="submit" id="send-button">Send</button>
             </form>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
-    // Pass initial chat data from Flask to JavaScript
-    // This allows the JS to know which chat is currently active on page load
-    window.initialChatType = "{{ chat_type | default('') }}";
-    window.initialChatId = "{{ chat_id | default('') }}";
-    window.currentUserId = "{{ current_user.id }}"; // Used for checking is_current_user_sender in JS
-</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@latest/dist/index.min.js"></script>
+    <script>
+        window.initialChatType = "{{ chat_type | default('null') | tojson }}"; 
+        window.initialChatId = "{{ chat_id | default('null') | tojson }}"; 
+        window.currentUserId = "{{ current_user.id | tojson }}"; 
+    </script>
+    <script src="{{ url_for('static', filename='chat.js') }}"></script>
 {% endblock %}
+
