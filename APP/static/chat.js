@@ -1,62 +1,71 @@
+import { EmojiButton } from '@joeattardi/emoji-button';
 
 const socket = io(); 
-let currentChatType = window.initialChatType;
-let currentChatId = window.initialChatId ? JSON.parse(window.initialChatId) : null; 
 
-// Define receiverId and groupId based on initial chat state
-let receiverId = currentChatType === 'user' ? currentChatId : null;
-let groupId = currentChatType === 'group' ? currentChatId : null;
+// Correctly initialize currentChatType and currentChatId from window variables
+let currentChatType = window.initialChatType || null; 
+let currentChatId = window.initialChatId ? parseInt(window.initialChatId) : null; 
+
+// Initial value for receiverId and groupId based on initial chat state
+let receiverId = (currentChatType === 'user' && currentChatId) ? currentChatId : null;
+let groupId = (currentChatType === 'group' && currentChatId) ? currentChatId : null;
 
 // New variable to store the Socket.IO room ID.
 let currentChatRoomId = null;
 
 const chatBox = document.getElementById('chat-box');
 const messageInput = document.getElementById('message-input');
-const emojiButton = document.querySelector('#emoji-button');
+const emojiButton = document.getElementById('emoji-button'); 
 const messageForm = document.getElementById('message-form');
 const userListElement = document.getElementById('user-list');
 const groupListElement = document.getElementById('group-list');
 
-// --- Added for displaying current chat partner/group ---
 const chatWithElement = document.getElementById('chat-with');
-const currentUserId = JSON.parse(window.currentUserId); 
+// Ensure currentUserId is parsed as an integer for reliable comparisons
+const currentUserId = parseInt(window.currentUserId); 
 
-
-// Emoji Picker setup (EmojiButton should now be globally available)
-const picker = new EmojiButton(); 
-picker.on('emoji', emoji => {
-    messageInput.value += emoji.emoji;
-});
-if (emojiButton) { // Added a check to ensure emojiButton exists
-    emojiButton.addEventListener('click', () => picker.togglePicker(emojiButton));
+// Emoji Picker setup
+let picker;
+// Check if EmojiButton is defined before trying to initialize it
+if (typeof EmojiButton !== 'undefined') { 
+    picker = new EmojiButton(); 
+    picker.on('emoji', emoji => {
+        messageInput.value += emoji.emoji;
+    });
+    if (emojiButton) {
+        emojiButton.addEventListener('click', () => picker.togglePicker(emojiButton));
+    }
+} else {
+    console.error("EmojiButton library not loaded. Check the CDN link in chat.html and ensure 'type=\"module\"' is correctly set if using ES modules for EmojiButton.");
 }
 
 
-// --- New: Socket.IO Event Listeners ---
-
+// --- Socket.IO Event Listeners ---
 
 socket.on('connect', function() {
     console.log('Connected to Socket.IO server!');
-    if (currentChatType && currentChatId) {
+    // If an initial chat is set from Flask, join its room immediately
+    // This ensures the client joins the correct room upon connection or refresh
+    if (currentChatType && currentChatType !== 'null' && currentChatId) {
         calculateAndJoinRoom(currentChatType, currentChatId);
     }
 });
 
 socket.on('new_message', function(message) {
-    console.log('New message received:', message);
+    console.log('New message received from server (Socket.IO):', message);
+    console.log('Timestamp received in new_message:', message.timestamp); // ADDED DEBUG LOG
 
     let messageBelongsToCurrentChat = false;
 
-    if (currentChatType === 'user' && message.receiver_id !== null) {
-        // For private chat, check if both current user and current chat partner are involved
-        const participants1 = [parseInt(message.sender_id), parseInt(message.receiver_id)].sort().join('_');
-        const participants2 = [parseInt(currentUserId), parseInt(currentChatId)].sort().join('_');
-        if (participants1 === participants2) {
+    if (currentChatType === 'user' && message.receiver_id !== null && message.group_id === null) {
+
+        const participantsInMsg = [parseInt(message.sender_id), parseInt(message.receiver_id)].sort().join('_');
+        const participantsInCurrentChat = [currentUserId, currentChatId].sort().join('_');
+        if (participantsInMsg === participantsInCurrentChat) {
             messageBelongsToCurrentChat = true;
         }
     } else if (currentChatType === 'group' && message.group_id !== null) {
-        // For group chat, simply check if the group ID matches
-        if (parseInt(message.group_id) === parseInt(currentChatId)) {
+        if (parseInt(message.group_id) === currentChatId) {
             messageBelongsToCurrentChat = true;
         }
     }
@@ -68,83 +77,79 @@ socket.on('new_message', function(message) {
 
 
 messageForm.addEventListener('submit', function(event) {
-    event.preventDefault();
+    event.preventDefault(); // Prevent default form submission (page reload)
     const content = messageInput.value.trim();
-    if (!content) return;
+    if (!content) return; // Don't send empty messages
 
-    if (currentChatRoomId && currentChatRoomId !== "None" && currentChatRoomId !== "null") {
+    // Ensure a chat room is active before emitting a message
+    if (currentChatRoomId && currentChatRoomId !== "null") { 
         const data = {
             message: content,
-            receiver_id: currentChatType === 'user' ? parseInt(currentChatId) : null,
-            group_id: currentChatType === 'group' ? parseInt(currentChatId) : null
+            // Set receiver_id or group_id based on the active chat type
+            receiver_id: currentChatType === 'user' ? currentChatId : null,
+            group_id: currentChatType === 'group' ? currentChatId : null
         };
         
+        // Emit the message data to the server via Socket.IO
         socket.emit('send_message', data); 
-        messageInput.value = '';
+        messageInput.value = ''; // Clear input field after sending
         
     } else {
-        console.warn("Cannot send message: No chat selected or room not established.");
+        console.warn("Cannot send message: No chat selected or Socket.IO room not established.");
         flashMessage("Please select a chat to send messages.", "warning"); 
     }
 });
 
 
-
-async function loadMessages() {
-    chatBox.innerHTML = ''; 
-
-    let url = '';
-    if (groupId) {
-        url = `/get_group_messages/${groupId}`;
-    } else if (receiverId) {
-        url = `/get_messages?receiver_id=${receiverId}`;
-    } else {
-        return; 
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-        console.error('Failed to load messages:', await response.text());
+// Function to add a single message to the chat box DOM
+function addMessageToChatBox(message) {
+    const chatBox = document.getElementById('chat-box');
+    if (!chatBox) {
+        console.error("Chat box element not found!");
         return;
     }
 
-    const data = await response.json();
-    const fragment = document.createDocumentFragment();
+    const messageBubble = document.createElement('div');
+    messageBubble.classList.add('message-bubble');
 
-    data.messages.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = 'message';
-        div.classList.add(msg.is_current_user_sender ? 'sent-message' : 'received-message');
-        if (msg.is_current_user_sender) {
-            div.style.textAlign = 'right';
-        } else {
-            div.style.textAlign = 'left';
-        }
-        div.innerHTML = `<strong>${msg.sender}</strong>: ${msg.content} <span class="timestamp">(${msg.timestamp})</span>`;
-        fragment.appendChild(div);
-    });
+    messageBubble.classList.add(parseInt(message.sender_id) === currentUserId ? 'mine' : 'theirs');
 
-    chatBox.appendChild(fragment);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
+    const messageHeader = document.createElement('div');
+    messageHeader.classList.add('message-header');
 
-function addMessageToChatBox(message) {
-    const messageDiv = document.createElement('div');
-    const isSentByCurrentUser = parseInt(message.sender_id) === parseInt(currentUserId);
-    messageDiv.classList.add('message', isSentByCurrentUser ? 'sent-message' : 'received-message');
+    const senderUsername = document.createElement('span');
+    senderUsername.classList.add('sender-username');
+    senderUsername.textContent = (parseInt(message.sender_id) === currentUserId) ? 'You' : message.sender_username; 
 
-    const senderName = isSentByCurrentUser ? 'You' : message.sender_username; 
+    const timestamp = document.createElement('span');
+    timestamp.classList.add('timestamp');
     
-    messageDiv.innerHTML = `
-        <div><strong>${senderName}:</strong> ${message.content}</div>
-        <span class="timestamp">${message.timestamp}</span>
-    `;
-    chatBox.appendChild(messageDiv);
-    scrollToBottom();
+    const localTime = new Date(message.timestamp);  
+    timestamp.textContent = localTime.toLocaleString('en-NG', {
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true,
+        month: 'short',
+        day: 'numeric'
+    }); 
+    console.log('Timestamp being assigned in addMessageToChatBox:', message.timestamp); // ADDED DEBUG LOG
+
+    messageHeader.appendChild(senderUsername);
+    messageHeader.appendChild(timestamp);
+    
+    const messageContent = document.createElement('div');
+    messageContent.classList.add('message-content');
+    messageContent.textContent = message.content; // Display the message content
+
+    messageBubble.appendChild(messageHeader);
+    messageBubble.appendChild(messageContent);
+    chatBox.appendChild(messageBubble); 
+    scrollToBottom(); 
 }
 
+// Function to calculate and join/leave Socket.IO rooms
 function calculateAndJoinRoom(type, id) {
-    if (currentChatRoomId && currentChatRoomId !== "None" && currentChatRoomId !== "null") {
+    if (currentChatRoomId && currentChatRoomId !== "null") {
         socket.emit('leave_chat', { room_id: currentChatRoomId });
         console.log(`Left room: ${currentChatRoomId}`);
     }
@@ -152,106 +157,113 @@ function calculateAndJoinRoom(type, id) {
     currentChatType = type;
     currentChatId = parseInt(id); 
 
-    // Calculate new room ID
     if (type === 'user') {
-        currentChatRoomId = String(Math.min(parseInt(currentUserId), currentChatId)) + '_' + String(Math.max(parseInt(currentUserId), currentChatId));
+        currentChatRoomId = String(Math.min(currentUserId, currentChatId)) + '_' + String(Math.max(currentUserId, currentChatId));
     } else if (type === 'group') {
         currentChatRoomId = 'group_' + String(currentChatId);
     } else {
-        currentChatRoomId = null;
+        currentChatRoomId = null; 
     }
 
-    // Join the new room
     if (currentChatRoomId) {
         socket.emit('join_chat', { room_id: currentChatRoomId });
         console.log(`Joined new room: ${currentChatRoomId}`);
     }
 }
 
-
-function setActiveChat(type, id, name) {
+async function setActiveChat(type, id, name) {
     if (type === 'user') {
         receiverId = parseInt(id); 
         groupId = null;
-        chatWithElement.textContent = name;
     } else if (type === 'group') {
         groupId = parseInt(id); 
         receiverId = null;
-        chatWithElement.textContent = name + " (Group)";
     }
+    chatWithElement.textContent = name; 
 
+    chatBox.innerHTML = ''; 
+    
     calculateAndJoinRoom(type, id); 
-    loadMessages(); 
-}
 
+    try {
+        const response = await fetch(`/api/messages/${type}/${id}`);
+        if (!response.ok) { 
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const messages = await response.json(); 
+        
+        messages.forEach(message => {
+            addMessageToChatBox(message); 
+        });
+    } catch (error) {
+        console.error('Error fetching historical messages:', error);
+        flashMessage('Failed to load past messages.', 'danger'); 
+    }
+    scrollToBottom(); 
+}
 
 // --- Initial Setup on DOM Content Loaded ---
 document.addEventListener('DOMContentLoaded', () => {
-    
-    if (userListElement) {
-        userListElement.addEventListener('click', (event) => {
-            const clickedLink = event.target.closest('a[data-chat-type="user"]');
-            if (clickedLink) {
-                const userId = clickedLink.dataset.chatId;
-                const userName = clickedLink.dataset.chatName;
-                setActiveChat('user', userId, userName); 
-                event.preventDefault(); 
-                updateSidebarActiveState(clickedLink); 
-            }
+    document.querySelectorAll('.chat-link').forEach(link => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault(); 
+            const chatType = link.dataset.chatType;
+            const chatId = link.dataset.chatId;
+            const chatName = link.dataset.chatName;
+            setActiveChat(chatType, chatId, chatName); 
+            updateSidebarActiveState(link); 
         });
-    }
+    });
 
-    if (groupListElement) {
-        groupListElement.addEventListener('click', (event) => {
-            const clickedLink = event.target.closest('a[data-chat-type="group"]');
-            if (clickedLink) {
-                const grpId = clickedLink.dataset.chatId;
-                const groupName = clickedLink.dataset.chatName;
-                setActiveChat('group', grpId, groupName || "Group Chat"); 
-                event.preventDefault(); 
-                updateSidebarActiveState(clickedLink); 
-            }
+    if (window.initialMessages && Array.isArray(window.initialMessages) && window.initialMessages.length > 0) {
+        console.log('DOM Content Loaded: Processing initialMessages from Flask.'); 
+        window.initialMessages.forEach(message => {
+            addMessageToChatBox(message); 
         });
-    }
-
-
-    if (window.initialChatType && window.initialChatId !== 'null' && window.initialChatId !== '') {
-        let initialChatTitle = document.getElementById('chat-with').textContent;
-        setActiveChat(window.initialChatType, window.initialChatId, initialChatTitle);
+    } else {
+        console.log('DOM Content Loaded: No initialMessages or array is empty.');
+        if (window.initialChatTitle && window.initialChatTitle !== "No Chat Selected") {
+            chatWithElement.textContent = window.initialChatTitle;
+        }
     }
 
     scrollToBottom();
+    
+    
+    const currentActiveChatLink = document.querySelector(`.chat-link[data-chat-type="${window.initialChatType}"][data-chat-id="${window.initialChatId}"]`);
+    if (currentActiveChatLink) {
+        updateSidebarActiveState(currentActiveChatLink);
+    }
 });
-
 
 function flashMessage(message, category) {
     const flashContainer = document.querySelector('.flash-messages'); 
     if (!flashContainer) {
-        console.warn("Flash message container not found. Message:", message);
-        return;
+        console.warn("Flash message container not found. Creating a temporary one. Message:", message);
+        const body = document.querySelector('body');
+        const container = document.createElement('div');
+        container.classList.add('flash-messages', 'container', 'mt-3');
+        body.insertBefore(container, body.firstChild);
+        flashContainer = container; 
     }
     const alertDiv = document.createElement('div');
     alertDiv.classList.add('alert', `alert-${category}`, 'alert-dismissible', 'fade', 'show');
     alertDiv.setAttribute('role', 'alert');
     alertDiv.innerHTML = `
         ${message}
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-        </button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
     flashContainer.appendChild(alertDiv);
     setTimeout(() => alertDiv.remove(), 5000);
 }
 
-// Helper to update the active class in the sidebar
 function updateSidebarActiveState(clickedLink) {
-    document.querySelectorAll('#user-list li, #group-list li').forEach(item => {
-        item.classList.remove('active');
+    document.querySelectorAll('.user-list-section ul li, .group-list-section ul li').forEach(item => {
+        item.classList.remove('active'); 
     });
     clickedLink.closest('li').classList.add('active');
 }
 
-// Helper to scroll chat box to bottom
 function scrollToBottom() {
     chatBox.scrollTop = chatBox.scrollHeight;
 }

@@ -1,24 +1,27 @@
-from flask import Blueprint, render_template,request, jsonify,current_app
-from flask_login import login_required,current_user,login_user
-from . import db
-from .models import Message, User,UpdateProfileForm
-from .utilis import save_profile_pic
-from flask import render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, request, jsonify, current_app, redirect, url_for, flash
+from flask_login import login_required, current_user
 from datetime import datetime, timezone
-import os 
-from .models import User, Group
-from .forms import CreateGroupForm
-from werkzeug.utils import secure_filename
+import os
 from dateutil import tz
+from sqlalchemy import or_ 
+from . import db, socketio 
+from .models import Message, User, UpdateProfileForm, Group
+from .forms import CreateGroupForm
+from .utilis import save_profile_pic 
+from werkzeug.utils import secure_filename
 
 views = Blueprint('views', __name__)
-
 
 LOCAL_TZ = tz.gettz('Africa/Lagos')
 if not LOCAL_TZ:
     print("Warning: 'Africa/Lagos' timezone not found. Using system local time as fallback.")
     LOCAL_TZ = tz.tzlocal()
 
+
+@views.route('/')
+def index():
+    """Redirects to the default chat view."""
+    return redirect(url_for('views.chat_default'))
 
 @views.route('/home')
 def home():
@@ -28,49 +31,72 @@ def home():
 @views.route('/chat')
 @login_required
 def chat_default():
-    users = User.query.filter(User.id != current_user.id).all()
-    if users:
-        # Redirect to the first user's chat by default
-        return redirect(url_for('views.chat_specific', chat_type='user', chat_id=users[0].id))
-    else:
-        # If no other users, display a default chat view (e.g., an empty one or a message)
-        flash("No other users available to chat with yet. You can create a group!", "info")
-        # Ensure that chat.html can render without chat_id or chat_type if this path is taken
-        return render_template('chat.html', users=[], groups=current_user.groups, current_user=current_user, chat_title="No Chat Selected", profile_pic='avatar.jpg', chat_type=None, chat_id=None, cache_buster=datetime.now(timezone.utc).timestamp())
+    general_chat = Group.query.filter_by(name="General Chat").first()
+    if general_chat and current_user in general_chat.members:
+        return redirect(url_for('views.chat_specific', chat_type='group', chat_id=general_chat.id))
+
+    if current_user.groups.first():
+        return redirect(url_for('views.chat_specific', chat_type='group', chat_id=current_user.groups.first().id))
+
+    other_users = User.query.filter(User.id != current_user.id).all()
+    if other_users:
+        return redirect(url_for('views.chat_specific', chat_type='user', chat_id=other_users[0].id))
+    
+    flash("No active chats available. You can create a group or wait for others to register!", "info")
+    return render_template('chat.html', 
+                            users=User.query.filter(User.id != current_user.id).all(), 
+                            groups=current_user.groups, 
+                            current_user=current_user, 
+                            chat_title="No Chat Selected", 
+                            profile_pic='avatar.jpg', 
+                            chat_type='null', # Pass 'null' string if no chat is active
+                            chat_id='null', # Pass 'null' string if no chat is active
+                            initial_messages=[], # Ensure it's an empty list
+                            current_chat_room_id='null', # Pass 'null' if no chat is active
+                            initial_chat_title="No Chat Selected", # <--- ADDED: For initial setup
+                            cache_buster=datetime.now(timezone.utc).timestamp())
 
 
 # Specific chat route (user or group)
-@views.route('/chat/<chat_type>/<int:chat_id>')
+@views.route('/chat/<string:chat_type>/<int:chat_id>') 
 @login_required
 def chat_specific(chat_type, chat_id):
-    users = User.query.filter(User.id != current_user.id).all()
-    groups = current_user.groups
+    all_users = User.query.filter(User.id != current_user.id).all() 
+    all_groups = current_user.groups 
     
     chat_title = ""
     profile_pic_filename = 'avatar.jpg'
-    
-    # Initialize messages and other variables that need to be passed to template
     messages = []
-    current_chat_id = chat_id
-    current_chat_type = chat_type
+    
+    # NEW: Variable to hold the Socket.IO room ID for the current chat
+    current_chat_room_id = None 
 
     if chat_type == 'user':
         chat_partner = User.query.get(chat_id)
         if chat_partner:
             chat_title = chat_partner.username
             profile_pic_filename = chat_partner.profile_pic if chat_partner.profile_pic else 'avatar.jpg'
+            
+            # Define a consistent room ID for private chats (sorted user IDs)
+            current_chat_room_id = str(min(current_user.id, chat_partner.id)) + '_' + str(max(current_user.id, chat_partner.id))
+            
             # Load initial private messages
             messages_db = Message.query.filter(
-                ((Message.sender_id == current_user.id) & (Message.receiver_id == chat_id)) |
-                ((Message.sender_id == chat_id) & (Message.receiver_id == current_user.id))
+                or_(
+                    (Message.sender_id == current_user.id) & (Message.receiver_id == chat_id),
+                    (Message.sender_id == chat_id) & (Message.receiver_id == current_user.id)
+                ),
+                Message.group_id == None 
             ).order_by(Message.timestamp).all()
+            
             for msg in messages_db:
                 dt_utc = msg.timestamp if msg.timestamp.tzinfo else msg.timestamp.replace(tzinfo=timezone.utc)
                 local_timestamp = dt_utc.astimezone(LOCAL_TZ)
                 messages.append({
-                    'sender': msg.sender.username,
+                    'sender_id': msg.sender.id, 
+                    'sender_username': msg.sender.username,
                     'content': msg.content,
-                    'timestamp': local_timestamp.strftime("%H:%M"),
+                    'timestamp': local_timestamp.strftime("%b %d, %I:%M %p"), 
                     'is_current_user_sender': msg.sender_id == current_user.id
                 })
         else:
@@ -82,15 +108,20 @@ def chat_specific(chat_type, chat_id):
         if group and current_user in group.members:
             chat_title = group.name
             profile_pic_filename = group.profile_pic if group.profile_pic else 'avatar.jpg'
+            
+            # Consistent room ID for groups
+            current_chat_room_id = 'group_' + str(group.id) 
+
             # Load initial group messages
             messages_db = Message.query.filter_by(group_id=group.id).order_by(Message.timestamp).all()
             for msg in messages_db:
                 dt_utc = msg.timestamp if msg.timestamp.tzinfo else msg.timestamp.replace(tzinfo=timezone.utc)
                 local_timestamp = dt_utc.astimezone(LOCAL_TZ)
                 messages.append({
-                    'sender': msg.sender.username,
+                    'sender_id': msg.sender.id, 
+                    'sender_username': msg.sender.username,
                     'content': msg.content,
-                    'timestamp': local_timestamp.strftime("%H:%M"),
+                    'timestamp': local_timestamp.strftime("%b %d, %I:%M %p"), 
                     'is_current_user_sender': msg.sender_id == current_user.id
                 })
         else:
@@ -103,78 +134,17 @@ def chat_specific(chat_type, chat_id):
     cache_buster = datetime.now(timezone.utc).timestamp()
 
     return render_template('chat.html',
-                            users=users,
-                            groups=groups,
+                            users=all_users, 
+                            groups=all_groups, 
                             chat_title=chat_title,
-                            profile_pic=profile_pic_filename, # Pass the filename
-                            chat_type=current_chat_type, 
-                            chat_id=current_chat_id,
-                            initial_messages=messages, # Pass initial messages for display
+                            profile_pic=profile_pic_filename,
+                            chat_type=chat_type, 
+                            chat_id=chat_id, 
+                            initial_messages=messages, 
                             current_user=current_user,
+                            current_chat_room_id=current_chat_room_id,
+                            initial_chat_title=chat_title, 
                             cache_buster=cache_buster)
-
-
-@views.route('/send_message', methods=['POST'])
-@login_required
-def send_message():
-    data = request.get_json()
-    content = data.get('content')
-    group_id = data.get('group_id')
-    receiver_id = data.get('receiver_id')
-
-    if not content:
-        return jsonify({'error': 'Empty message'}), 400
-
-    if not group_id and not receiver_id:
-        return jsonify({'error': 'No recipient specified'}), 400
-
-    message = Message(
-        content=content,
-        sender_id=current_user.id,
-        group_id=group_id,
-        receiver_id=receiver_id,
-        timestamp=datetime.now(timezone.utc) 
-    )
-
-    db.session.add(message)
-    db.session.commit()
-
-    return jsonify({'message': 'Message sent successfully'})
-
-
-@views.route('/get_messages', methods=['GET'])
-@login_required
-def get_messages():
-    group_id = request.args.get('group_id')
-    receiver_id_str = request.args.get('receiver_id')
-
-    messages_db = [] 
-    if group_id:
-        messages_db = Message.query.filter_by(group_id=group_id).order_by(Message.timestamp).all()
-    elif receiver_id_str:
-        try:
-            receiver_id = int(receiver_id_str)
-        except ValueError:
-            return jsonify({'error': 'Invalid receiver_id'}), 400
-
-        messages_db = Message.query.filter(
-            ((Message.sender_id == current_user.id) & (Message.receiver_id == receiver_id)) |
-            ((Message.sender_id == receiver_id) & (Message.receiver_id == current_user.id))
-        ).order_by(Message.timestamp).all()
-
-    formatted = []
-    for msg in messages_db: # Loop through messages_db
-        dt_utc = msg.timestamp if msg.timestamp.tzinfo else msg.timestamp.replace(tzinfo=timezone.utc)
-        local_timestamp = dt_utc.astimezone(LOCAL_TZ)
-
-        formatted.append({
-            'sender': msg.sender.username,
-            'content': msg.content,
-            'timestamp': local_timestamp.strftime("%H:%M"),
-            'is_current_user_sender': msg.sender_id == current_user.id
-        })
-
-    return jsonify({'messages': formatted})
 
 
 @views.route('/profile', methods=['GET', 'POST'])
@@ -206,44 +176,6 @@ def profile():
     return render_template('profile.html', form=form, cache_buster=cache_buster)
 
 
-@views.route('/get_group_messages/<int:group_id>')
-@login_required
-def get_group_messages(group_id):
-    messages_db = Message.query.filter_by(group_id=group_id).order_by(Message.timestamp.asc()).all()
-    result = []
-    for msg in messages_db:
-        dt_utc = msg.timestamp if msg.timestamp.tzinfo else msg.timestamp.replace(tzinfo=timezone.utc)
-        local_timestamp = dt_utc.astimezone(LOCAL_TZ)
-
-        result.append({
-            'sender': msg.sender.username,
-            'content': msg.content,
-            'timestamp': local_timestamp.strftime('%H:%M'),
-            'is_current_user_sender': msg.sender_id == current_user.id 
-        })
-    return jsonify({'messages': result})
-
-
-@views.route('/send_group_message/<int:group_id>', methods=['POST'])
-@login_required
-def send_group_message(group_id):
-    data = request.get_json()
-    content = data.get('content')
-
-    if not content:
-        return jsonify({'error': 'Empty message'}), 400
-
-    msg = Message(
-        content=content,
-        sender_id=current_user.id,
-        group_id=group_id,
-        timestamp=datetime.now(timezone.utc) 
-    )
-    db.session.add(msg)
-    db.session.commit()
-    return jsonify({'status': 'sent'})
-
-
 @views.route('/create-group', methods=['GET', 'POST'])
 @login_required
 def create_group():
@@ -260,7 +192,6 @@ def create_group():
             if '.' in file.filename and ext in allowed_extensions:
                 upload_folder = os.path.join(current_app.root_path, 'static', 'profile_pic')
                 os.makedirs(upload_folder, exist_ok=True)
-
                 
                 from datetime import datetime
                 timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -314,3 +245,108 @@ def delete_group(group_id):
     db.session.commit()
     flash("Group deleted successfully", "success")
     return redirect(url_for('views.chat_default'))
+
+
+# --- NEW: Socket.IO Event Handlers ---
+from flask_socketio import emit, join_room, leave_room
+from flask import request 
+
+@socketio.on('connect')
+def handle_connect():
+    if current_user.is_authenticated:
+        print(f"User {current_user.username} connected with sid: {request.sid}")
+        join_room(f"user_{current_user.id}")
+    else:
+        print(f"Anonymous user connected with sid: {request.sid}. Disconnecting.")
+        return False 
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    if current_user.is_authenticated:
+        print(f"User {current_user.username} disconnected with sid: {request.sid}")
+        leave_room(f"user_{current_user.id}") # Leave personal room
+    else:
+        print(f"Anonymous user disconnected with sid: {request.sid}")
+
+
+@socketio.on('join_chat')
+@login_required
+def handle_join_chat(data):
+    
+    room_id = data.get('room_id')
+    if room_id:
+        join_room(room_id)
+        print(f'{current_user.username} joined room: {room_id}')
+    else:
+        print(f"Error: {current_user.username} tried to join a chat without a room_id.")
+
+@socketio.on('leave_chat')
+@login_required
+def handle_leave_chat(data):
+    
+    room_id = data.get('room_id')
+    if room_id:
+        leave_room(room_id)
+        print(f'{current_user.username} left room: {room_id}')
+    else:
+        print(f"Error: {current_user.username} tried to leave a chat without a room_id.")
+
+
+@socketio.on('send_message')
+@login_required
+def handle_send_message(data):
+
+    user_id = current_user.id
+    receiver_id = data.get('receiver_id')
+    group_id = data.get('group_id')
+    message_content = data.get('message', '').strip()
+
+    if not message_content:
+        return 
+
+    timestamp_utc = datetime.now(timezone.utc)
+    new_message = Message(
+        sender_id=user_id,
+        content=message_content,
+        timestamp=timestamp_utc 
+    )
+
+    room_id = None
+    if receiver_id is not None: 
+        target_user = User.query.get(receiver_id)
+        if not target_user:
+            print(f"Error: User {current_user.username} tried to send message to non-existent receiver {receiver_id}")
+            return
+        new_message.receiver_id = receiver_id
+        room_id = str(min(user_id, receiver_id)) + '_' + str(max(user_id, receiver_id))
+    elif group_id is not None: 
+        target_group = Group.query.get(group_id)
+        if not target_group or current_user not in target_group.members:
+            print(f"Error: User {current_user.username} tried to send message to non-existent or inaccessible group {group_id}")
+            return
+        new_message.group_id = group_id
+        # Group chat room ID
+        room_id = 'group_' + str(group_id)
+    else:
+        print(f"Error: {current_user.username} sent a message without receiver_id or group_id.")
+        return # No recipient specified
+
+    db.session.add(new_message)
+    db.session.commit()
+
+    timestamp_utc = datetime.now(timezone.utc)
+
+    # Prepare message data to send back to clients
+    message_data = {
+    'sender_id': new_message.sender_id,
+    'sender_username': current_user.username,
+    'content': new_message.content,
+    'timestamp': timestamp_utc.isoformat(),  # <--- Send ISO string
+    'receiver_id': new_message.receiver_id,
+    'group_id': new_message.group_id
+}
+    socketio.emit('new_message', message_data, room=room_id)
+
+
+
+

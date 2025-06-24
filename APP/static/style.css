@@ -32,7 +32,7 @@ body {
 
 .hero {
     height: 100vh;
-    background-image: url('/static/images/your-bg.jpg');
+    background-image: url('/static/images/your-bg.jpg'); /* Verify this path */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -58,7 +58,7 @@ body {
 .chat-page-wrapper {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: center; /* Changed from flex-start to center for better overall centering */
     /* Use min-height to ensure it takes full available space, adjusting for navbar */
     min-height: calc(100vh - 56px); /* Assuming a 56px navbar height */
     padding: 20px;
@@ -150,18 +150,19 @@ body {
     font-weight: bold;
 }
 
-#chat-box {
+#chat-box { /* Ensure this matches your HTML ID */
     flex-grow: 1;
     padding: 15px;
     overflow-y: auto;
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: column; /* Crucial for aligning messages with align-self */
+    gap: 10px; /* Spacing between message bubbles */
     background-color: #f9f9f9;
     box-sizing: border-box;
 }
 
-.message {
+/* REPLACED .message with .message-bubble and added header styling */
+.message-bubble { /* This now combines your old .message and general bubble styling */
     max-width: 70%;
     padding: 10px 12px;
     border-radius: 15px;
@@ -170,32 +171,53 @@ body {
     line-height: 1.4;
     font-size: 0.95em;
     position: relative;
-    display: flex;
+    display: flex; /* Flex for header and content */
     flex-direction: column;
 }
 
-.sent-message {
-    align-self: flex-end;
-    background-color: #dcf8c6;
-    color: #333;
-    border-bottom-right-radius: 2px;
+/* Header for messages - applies to both mine and theirs */
+.message-bubble .message-header {
+    display: flex;
+    justify-content: space-between; /* Puts name on left, timestamp on right */
+    align-items: baseline;
+    margin-bottom: 5px;
+    font-size: 0.75em; /* Slightly smaller for header */
+    color: #666; /* Softer color for header text */
 }
 
-.received-message {
-    align-self: flex-start;
-    background-color: #fff;
-    color: #333;
-    border-bottom-left-radius: 2px;
+.message-bubble .sender-username {
+    font-weight: bold;
+    margin-right: 10px;
 }
 
-.message .timestamp {
+
+/* REPLACED .sent-message with .message-bubble.mine */
+.message-bubble.mine {
+    align-self: flex-end; /* Pushes to the right */
+    background-color: #dcf8c6; /* Light green */
+    color: #333;
+    border-bottom-right-radius: 2px; /* Small "tail" */
+    margin-left: auto; /* Ensures it's fully pushed right */
+}
+
+/* REPLACED .received-message with .message-bubble.theirs */
+.message-bubble.theirs {
+    align-self: flex-start; /* Pushes to the left */
+    background-color: #fff; /* White */
+    color: #333;
+    border-bottom-left-radius: 2px; /* Small "tail" */
+    margin-right: auto; /* Ensures it's fully pushed left */
+}
+
+/* Timestamp within message bubbles */
+.message-bubble .timestamp { /* Changed from .message .timestamp to specifically target within bubble */
     font-size: 0.75em;
     color: #888;
-    margin-top: 5px;
-    display: block;
-    text-align: right;
-    line-height: 1;
+    margin-top: 5px; /* Adjust as needed, was display: block; text-align: right; line-height: 1; */
+    /* If you want it always at the bottom right of the bubble content, keep your old approach of absolute positioning or move it outside message-header */
+    /* For now, keeping it within header for simplicity as per previous versions */
 }
+
 
 #message-form {
     display: flex;
@@ -214,7 +236,7 @@ body {
     outline: none;
 }
 #emoji-button, #send-button {
-    background-color: #007bff;
+    background-color: #007bff; /* Kept your initial blue for emoji button */
     color: white;
     border: none;
     border-radius: 60%;
@@ -229,9 +251,9 @@ body {
     flex-shrink: 0;
 }
 #send-button {
-    background-color: #0a9f1e;
-    font-size: small;
-    font-weight: 300;
+    background-color: #0a9f1e; /* Green for send button as you had it */
+    font-size: small; /* Keep as is */
+    font-weight: 300; /* Keep as is */
 }
 #send-button:hover {
     background-color: #1bb300;
@@ -273,7 +295,7 @@ body {
         padding: 10px;
         gap: 5px;
     }
-    .message {
+    .message-bubble { /* Updated class name */
         max-width: 90%; /* Allow messages to take more width */
         padding: 8px 10px; /* Slightly smaller padding */
         font-size: 0.9em;
@@ -297,7 +319,7 @@ body {
 
 #create_group{
     text-align: center;
-    background-color: #0a9f1e;
+    background-color: #0a9f1e; /* This ID likely refers to a button, so this is okay */
 }
 
 @media (max-width: 480px) {
@@ -316,12 +338,16 @@ body {
     }
 }
 
-
-
-
-
-
-
-
-
-
+/* Sidebar Active State - these were missing in your provided CSS but are important */
+.user-list-section ul li.active a,
+.group-list-section ul li.active a {
+    background-color: #cce5ff; /* Light blue for active chat link */
+    font-weight: bold;
+    color: #0056b3;
+}
+/* You may also want to style the li directly for a background if you prefer */
+.user-list-section ul li.active,
+.group-list-section ul li.active {
+    background-color: #e2f0fb; /* Even lighter background for active list item */
+    border-radius: 5px;
+}

@@ -93,30 +93,37 @@
             <div class="chat-header">
                 <h3>Chat with <span id="chat-with">{{ chat_title }}</span></h3>
             </div>
-            <div id="chat-box" data-initial-messages="{{ initial_messages | tojson }}">
-                {% for msg in initial_messages %}
-                    <div class="message {{ 'sent-message' if msg.is_current_user_sender else 'received-message' }}">
-                        <strong>{{ msg.sender }}</strong>: {{ msg.content }} <span class="timestamp">({{ msg.timestamp }})</span>
-                    </div>
-                {% endfor %}
-            </div>
+            <div id="chat-box">
+                </div>
             <form id="message-form">
                 <button type="button" id="emoji-button">😀</button>
                 <input type="text" id="message-input" placeholder="Type a message..." autocomplete="on" />
                 <button type="submit" id="send-button">Send</button>
             </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
-    
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@latest/dist/index.min.js"></script>
-    <script>
-        window.initialChatType = "{{ chat_type | default('null') | tojson }}"; 
-        window.initialChatId = "{{ chat_id | default('null') | tojson }}"; 
-        window.currentUserId = "{{ current_user.id | tojson }}"; 
-    </script>
-    <script src="{{ url_for('static', filename='chat.js') }}"></script>
-{% endblock %}
+    <script type="importmap">
+    {
+        "imports": {
+        "@joeattardi/emoji-button": "https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.4/dist/index.js"
+        }
+    }
+</script>
 
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.4/dist/index.js"></script>
+    <script>
+        // Pass initial data directly from Flask to JavaScript global variables
+        window.initialChatType = {{ chat_type | tojson }}; 
+        window.initialChatId = {{ chat_id | tojson }}; 
+        window.initialChatTitle = {{ initial_chat_title | tojson }};
+        window.currentUserId = {{ current_user.id | tojson }}; 
+        // THIS IS CRUCIAL: Pass the initial messages array to JS
+        window.initialMessages = {{ initial_messages | tojson }}; 
+    </script>
+    <script type="module" src="{{ url_for('static', filename='chat.js') }}?v={{ cache_buster }}"></script>
+{% endblock %}
