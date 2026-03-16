@@ -1,116 +1,106 @@
-#  Face Scanner + Emotion Detector
-
+# FamChat
 ## Overview
-**Face Scanner + Emotion Detector** is a Python-based web application that detects human facial expressions in real time using your webcam.  
+**FamChat** is a real-time web chat application built with Flask, Flask-SocketIO, and SQLAlchemy. Users can register, login, create and join groups, send private messages, and chat in real-time with other users. The platform supports emojis, media attachments, and maintains chat history.
 
-Users can:
-- Scan faces live through their camera  
-- Detect and display emotions such as happy, sad, angry, surprised, fear, disgust, and neutral  
-- Save snapshots of detected faces along with the detected emotion  
-- View, manage, and delete captured snapshots in a gallery  
+# Features
 
-This project uses **DeepFace** for emotion detection and **Flask** for the web interface.
+- **User authentication**: Sign up, login, logout, reset password.
 
+- **Real-time chat with private and group messaging using Socket.IO.**
 
-##  Features
+- **Emoji support via EmojiButton.**
 
-- **Real-time Face Detection:** Uses your webcam to detect faces live.  
-- **Emotion Analysis:** Predicts dominant emotion and scores for each frame.  
-- **Snapshot Capture:** Save detected faces as images with emotion labels and timestamps.  
-- **Gallery View:** Browse captured snapshots with details.  
-- **Delete Functionality:** Remove unwanted captures directly from the gallery.  
-- **Robust Logging:** Each captured face and its emotion are stored in a CSV log for future reference.  
+- **User profile pictures and group avatars.**
 
----
+- **Responsive UI for mobile and desktop.**
 
-## Supported Emotions
+- **Persistent message history stored in a database.**
 
-The emotion detector can recognize the following emotions:  
+- **Active chat highlighting in the sidebar.**
 
-- Happy  
-- Sad  
-- Angry  
-- Surprised  
-- Fear  
-- Disgust  
-- Neutral  
+- **Basic notification system for new messages.**
 
----
+# Tech Stack
 
-##  Technologies Used
+- **Backend**: Python, Flask, Flask-SocketIO, Flask-Login, Flask-WTF, SQLAlchemy
 
-**Programming Language:** Python 3.8+  
+- **Frontend**: HTML, CSS, JavaScript, Bootstrap, EmojiButton
 
-**Libraries & Tools:**
-- [Flask] – Web framework  
-- [OpenCV] – Real-time image capture and processing  
-- [DeepFace] – Facial emotion recognition  
-- [Pandas] – CSV logging  
-- HTML/CSS – Frontend for live display and gallery  
+- **Database**: SQLite (default)
 
-
-
-# Project Structure
-  ```test
-  Face-Scanner-Emotion-Detector/
-  │
-  ├── static/
-  │   ├── captures/           # Saved face snapshots
-  │   └── style.css            # Styles for frontend
-  │
-  ├── templates/
-  │   ├── index.html           # Main scanner page
-  │   └── gallery.html         # Gallery view
-  │
-  ├── .gitignore
-  ├── app.py                  # Main Flask application
-  └── requirements.txt         # Python dependencies
-```
+## Other Libraries: PIL (for image processing), python-dotenv
 
 # Installation
-## Clone the repository
-git clone https://github.com/Micheal-Onyinye/Face-Scanner-Emotion-Detector.git
-cd Face-Scanner-Emotion-Detector
-## Install dependencies
 
-It is recommended to use a virtual environment:
+**Clone the repository**
+
+git clone https://github.com/Micheal-Onyinye/FamChat.git
+cd FamChat
+
+Create a virtual environment
 
 python -m venv venv
-source venv/bin/activate    # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+**Install dependencies**
+
 pip install -r requirements.txt
 
-# How to Run
+Set environment variables
 
-Start the Flask application:
+Create a .env file in the root:
 
-python app.py
+SECRET_KEY=your_secret_key
 
-Open your browser and go to: http://127.0.0.1:5000/
+Initialize the database
 
-Point your camera at a face. The detected emotion will be displayed live.
+from APP import create_database, define_app
+app = define_app()
+create_database(app)
 
-Click "Save Snapshot" to store the face and emotion data.
+Run the app
 
-Visit the Gallery page to view, manage, or delete captured snapshots.
+flask run
+# Or if using SocketIO for live chat:
+python run.py
+Usage
 
-# Gallery Management
+Register a new user via /sign_up.
 
-Each saved snapshot shows:
+Login via /login.
 
-Detected emotion
+Join the "General Chat" group automatically created for all users.
 
-Timestamp
+Send private messages or create/join groups.
 
-You can delete any snapshot; the log CSV will automatically update.
+Messages appear in real-time and are stored in the database.
 
-# How It Works
+Use the emoji picker to add emojis to messages.
 
-The webcam captures live frames.
-
-DeepFace.analyze() analyzes faces in each frame for emotion.
-
-Detected faces are highlighted with bounding boxes, and emotion scores are displayed.
-
-Press Save Snapshot to extract and save the face along with the emotion.
-
-All saved images and details are logged in logs/events.csv.
+# Folder Structure
+```test
+FamChat/
+│
+├── APP/
+│   ├── __init__.py          # App factory and database setup
+│   ├── models.py            # Database models
+│   ├── views.py             # Flask routes
+│   ├── auth.py              # Authentication routes
+│   ├── forms.py             # Flask-WTF forms
+│   ├── utilis.py            # Utility functions (e.g., save profile pics)
+│   └── static/              # CSS, JS, images
+│       ├── profile_pic/     
+│       ├── bg2.jpg
+│       └── images/
+│
+├── templates/               # HTML templates
+│   ├── chat.html
+│   ├── login.html
+│   ├── sign_up.html
+│   └── reset_password.html
+│
+├── .env                     # Environment variables
+├── database.db              # SQLite database
+├── requirements.txt         # Python dependencies
+└── app.py                   # Entry point (if using SocketIO)
