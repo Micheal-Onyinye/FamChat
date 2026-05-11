@@ -129,5 +129,5 @@ class UpdateProfileForm(FlaskForm):
     submit = SubmitField('Update Profile')
 
 
-print("✅ models.py loaded correctly")
+
 print(User.__table__)
